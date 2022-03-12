@@ -16,17 +16,34 @@ const resultList = document.querySelector('.result__list');
 const formSearch = document.querySelector('.bottom__search');
 const found = document.querySelector('.found');
 
+const orderBy = document.querySelector('#order_by');
+const searchPeriod = document.querySelector('#search_period');
+
+let data = [];
+
 
 // склонение. возвращает только слово
 const declOfNum = (n, titles) => n + ' ' + titles[n % 10 === 1 && n % 100 !== 11 ?
   0 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 1 : 2];
 
 
-const getData = ({ search, id } = {}) => {
+const getData = ({ search, id, country, city } = {}) => {
+
+  let url = `http://localhost:3000/api/vacancy/${id ? id : ''}`;
+
   if (search) {
-    return fetch(`http://localhost:3000/api/vacancy?search=${search}`).then(response => response.json());
+    url = `http://localhost:3000/api/vacancy?search=${search}`;
   }
-  return fetch(`http://localhost:3000/api/vacancy/${id ? id : ''}`).then(response => response.json());
+
+  if (city) {
+    url = `http://localhost:3000/api/vacancy?city=${city}`;
+  }
+
+  if (country) {
+    url = `http://localhost:3000/api/vacancy?country=${country}`;
+  }
+
+  return fetch(url).then(response => response.json());
 };
 
 
@@ -85,6 +102,27 @@ const renderCards = (data) => {
 };
 
 
+const sortData = () => {
+  switch (orderBy.value) {
+    case 'down':
+      data.sort((a, b) => a.minCompensation > b.minCompensation ? 1 : -1);
+      break;
+    case 'up':
+      data.sort((a, b) => b.minCompensation > a.minCompensation ? 1 : -1);
+      break;
+    default:
+      data.sort((a, b) => new Date(a.date).getTime() > new Date(b.date).getTime() ? 1 : -1);
+  }
+};
+
+
+const filterData = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - searchPeriod.value);
+  return data.filter(item => new Date(item.date).getTime() > date);
+}
+
+
 const optionsHandler = () => {
 
   optionBtnOrder.addEventListener('click', (e) => {
@@ -102,6 +140,9 @@ const optionsHandler = () => {
   optionListOrder.addEventListener('click', (e) => {
     if (e.target.classList.contains('option__item')) {
       optionBtnOrder.textContent = e.target.textContent;
+      orderBy.value = e.target.dataset.sort;
+      sortData();
+      renderCards(data);
       optionListOrder.classList.remove('option__list_active');
       for (const elem of optionListOrder.querySelectorAll('.option__item')) {
         if (elem === e.target) {
@@ -115,8 +156,12 @@ const optionsHandler = () => {
   });
 
   optionListPeriod.addEventListener('click', (e) => {
+
     if (e.target.classList.contains('option__item')) {
       optionBtnPeriod.textContent = e.target.textContent;
+      searchPeriod.value = e.target.dataset.date;
+      const tempData = filterData();
+      renderCards(tempData);
       optionListPeriod.classList.remove('option__list_active');
       for (const elem of optionListPeriod.querySelectorAll('.option__item')) {
         if (elem === e.target) {
@@ -127,6 +172,7 @@ const optionsHandler = () => {
       }
       e.target.classList.add('option__item_active');
     }
+
   });
 
 };
@@ -138,11 +184,23 @@ const cityHandler = () => {
     city.classList.toggle('city_active');
   });
 
-  cityRegionList.addEventListener('click', (e) => {
+  cityRegionList.addEventListener('click', async (e) => {
+
     if (e.target.classList.contains('city__link')) {
+      const hash = new URL(e.target.href).hash.substring(1);
+      const option = {
+        [hash]: e.target.textContent,
+      };
+      data = await getData(option);
+      sortData();
+
+      // filterData();
+
+      renderCards(data);
       topCityBtn.textContent = e.target.textContent;
       city.classList.remove('city_active');
     }
+
   });
 
   cityClose.addEventListener('click', () => {
@@ -278,8 +336,13 @@ const searchHandler = () => {
     const textSearch = formSearch.search.value;
 
     if (textSearch.length > 2) {
+
       formSearch.search.style.borderColor = '';
-      const data = await getData({ search: textSearch });
+      data = await getData({ search: textSearch });
+      sortData();
+
+      // filterData();
+
       renderCards(data);
 
       found.innerHTML = `
@@ -287,9 +350,12 @@ const searchHandler = () => {
       `;
 
       formSearch.reset();
+
     } else {
+
       formSearch.search.style.borderColor = 'red';
-      setTimeout(() => { formSearch.search.style.borderColor = '' }, 2000)
+      setTimeout(() => { formSearch.search.style.borderColor = '' }, 2000);
+
     }
   });
 
@@ -298,7 +364,12 @@ const searchHandler = () => {
 
 const init = async () => {
 
-  const data = await getData();
+  data = await getData();
+
+  sortData();
+
+  data = filterData();
+
   renderCards(data);
 
   optionsHandler();
